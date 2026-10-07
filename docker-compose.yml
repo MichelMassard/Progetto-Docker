@@ -1,0 +1,60 @@
+services:
+  web:
+    build: .
+    ports:
+      - "1010:80"
+    environment:
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      TRANSLATE_URL: http://translate:5000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - chat-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health.php"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - chat-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  translate:
+    image: libretranslate/libretranslate:${LT_VERSION}
+    environment:
+      LT_LOAD_ONLY: en,it,de,fr
+    volumes:
+      - lt-models:/home/libretranslate/.local
+    networks:
+      - chat-net
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+
+networks:
+  chat-net:
+    name: chat-net
+
+volumes:
+  db-data:
+  lt-models:
